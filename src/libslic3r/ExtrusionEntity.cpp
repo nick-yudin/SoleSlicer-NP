@@ -4,6 +4,7 @@
 #include "ClipperUtils.hpp"
 #include "Extruder.hpp"
 #include "Flow.hpp"
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <sstream>
@@ -27,16 +28,62 @@ void ExtrusionPath::subtract_expolygons(const ExPolygons &collection, ExtrusionE
 
 void ExtrusionPath::clip_end(double distance)
 {
+    const bool had_valid_contour = this->z_contoured && this->z_offsets.size() == this->polyline.points.size();
+    Points old_points;
+    std::vector<coordf_t> old_offsets;
+    if (had_valid_contour) {
+        old_points = this->polyline.points;
+        old_offsets = this->z_offsets;
+    }
+
     this->polyline.clip_end(distance);
+
+    if (!had_valid_contour)
+        return;
+
+    const size_t new_size = this->polyline.points.size();
+    if (new_size < 2 || new_size > old_offsets.size()) {
+        this->z_contoured = false;
+        this->z_offsets.clear();
+        return;
+    }
+
+    this->z_offsets.resize(new_size);
+    std::copy_n(old_offsets.begin(), new_size, this->z_offsets.begin());
+
+    // When clip_end trims only part of the final segment, update the terminal offset by linear interpolation.
+    if (new_size >= 2 && new_size <= old_points.size()) {
+        const Point &new_last = this->polyline.points.back();
+        const Point &old_prev = old_points[new_size - 2];
+        const Point &old_last = old_points[new_size - 1];
+        if (new_last != old_last) {
+            const double seg_dx = double(old_last.x()) - double(old_prev.x());
+            const double seg_dy = double(old_last.y()) - double(old_prev.y());
+            const double seg_len = std::sqrt(seg_dx * seg_dx + seg_dy * seg_dy);
+            if (seg_len > EPSILON) {
+                const double cut_dx = double(new_last.x()) - double(old_prev.x());
+                const double cut_dy = double(new_last.y()) - double(old_prev.y());
+                const double cut_len = std::sqrt(cut_dx * cut_dx + cut_dy * cut_dy);
+                const double t = std::clamp(cut_len / seg_len, 0.0, 1.0);
+                const coordf_t z0 = old_offsets[new_size - 2];
+                const coordf_t z1 = old_offsets[new_size - 1];
+                this->z_offsets.back() = coordf_t((1.0 - t) * double(z0) + t * double(z1));
+            }
+        }
+    }
 }
 
 void ExtrusionPath::simplify(double tolerance)
 {
+    if (this->z_contoured)
+        return;
     this->polyline.simplify(tolerance);
 }
 
 void ExtrusionPath::simplify_by_fitting_arc(double tolerance)
 {
+    if (this->z_contoured)
+        return;
     this->polyline.simplify_by_fitting_arc(tolerance);
 }
 

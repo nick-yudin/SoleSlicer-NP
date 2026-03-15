@@ -5205,25 +5205,35 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         return lerp(m_nominal_z - height, m_nominal_z, z_ratio);
     };
 
+    const bool z_contoured = path.z_contoured && path.z_offsets.size() == path.polyline.points.size();
     bool slope_need_z_travel = false;
     if (sloped != nullptr && !sloped->is_flat()) {
         auto target_z = get_sloped_z(sloped->slope_begin.z_ratio);
         slope_need_z_travel = m_writer.will_move_z(target_z);
     }
+    bool contour_need_z_travel = false;
+    double contour_start_z = DBL_MAX;
+    if (z_contoured && !path.z_offsets.empty()) {
+        contour_start_z = m_nominal_z + path.z_offsets.front();
+        if (contour_start_z < 0.1)
+            throw RuntimeError("GCode: contouring produced too low start Z value.");
+        contour_need_z_travel = m_writer.will_move_z(contour_start_z);
+    }
     // Move to first point of extrusion path
     // path is 2D. But in slope lift case, lift z is done in travel_to function.
     // Add m_need_change_layer_lift_z when change_layer in case of no lift if m_last_pos is equal to path.first_point() by chance
-    if (!m_last_pos_defined || m_last_pos != path.first_point() || m_need_change_layer_lift_z || slope_need_z_travel) {
+    if (!m_last_pos_defined || m_last_pos != path.first_point() || m_need_change_layer_lift_z || slope_need_z_travel || contour_need_z_travel) {
         const bool _last_pos_undefined = !m_last_pos_defined;
+        const double travel_z = sloped == nullptr ? (z_contoured ? contour_start_z : DBL_MAX) : get_sloped_z(sloped->slope_begin.z_ratio);
         gcode += this->travel_to(
             path.first_point(),
             path.role(),
             "move to first " + description + " point",
-            sloped == nullptr ? DBL_MAX : get_sloped_z(sloped->slope_begin.z_ratio)
+            travel_z
         );
         m_need_change_layer_lift_z = false;
         // Orca: force restore Z after unknown last pos
-        if (_last_pos_undefined && !slope_need_z_travel) {
+        if (_last_pos_undefined && !slope_need_z_travel && !contour_need_z_travel) {
             gcode += this->writer().travel_to_z(m_last_layer_z, "force restore Z after unknown last pos", true);
         }
     }
@@ -5429,7 +5439,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     bool variable_speed = false;
     std::vector<ProcessedPoint> new_points {};
 
-    if (m_config.enable_overhang_speed && !this->on_first_layer() &&
+    if (m_config.enable_overhang_speed && !this->on_first_layer() && !z_contoured &&
         (is_bridge(path.role()) || is_perimeter(path.role()))) {
             bool is_external = is_external_perimeter(path.role());
             double ref_speed   = is_external ? m_config.get_abs_value("outer_wall_speed") : m_config.get_abs_value("inner_wall_speed");
@@ -5754,14 +5764,17 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             }
             // BBS: use G1 if not enable arc fitting or has no arc fitting result or in spiral_mode mode or we are doing sloped extrusion
             // Attention: G2 and G3 is not supported in spiral_mode mode
-            if (!m_config.enable_arc_fitting || path.polyline.fitting_result.empty() || m_config.spiral_mode || sloped != nullptr) {
+            if (!m_config.enable_arc_fitting || path.polyline.fitting_result.empty() || m_config.spiral_mode || sloped != nullptr || z_contoured) {
                 double path_length = 0.;
                 double total_length = sloped == nullptr ? 0. : path.polyline.length() * SCALING_FACTOR;
+                size_t segment_idx = 0;
                 for (const Line& line : path.polyline.lines()) {
                     std::string tempDescription = description;
                     const double line_length = line.length() * SCALING_FACTOR;
-                    if (line_length < EPSILON)
+                    if (line_length < EPSILON) {
+                        ++segment_idx;
                         continue;
+                    }
                     path_length += line_length;
                     auto dE = e_per_mm * line_length;
                     if (_needSAFC(path)) {
@@ -5772,7 +5785,22 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                             tempDescription += Slic3r::format(" | Old Flow Value: %0.5f Length: %0.5f",oldE, line_length);
                         }
                     }
-                    if (sloped == nullptr) {
+                    if (z_contoured) {
+                        const coordf_t z_diff = path.z_offsets[segment_idx + 1];
+                        if (path.role() != erIroning && std::abs(path.height) > EPSILON) {
+                            const double extrusion_ratio = std::max(0.0, (double(path.height) + double(z_diff)) / double(path.height));
+                            dE *= extrusion_ratio;
+                        }
+                        const double z = m_nominal_z + z_diff;
+                        if (z < 0.1)
+                            throw RuntimeError("GCode: contouring produced too low Z value.");
+                        Vec2d dest2d = this->point_to_gcode(line.b);
+                        gcode += m_writer.extrude_to_xyz(
+                            Vec3d(dest2d(0), dest2d(1), z),
+                            dE,
+                            GCodeWriter::full_gcode_comment ? tempDescription : "",
+                            path.is_force_no_extrusion());
+                    } else if (sloped == nullptr) {
                         // Normal extrusion
                         gcode += m_writer.extrude_to_xy(
                             this->point_to_gcode(line.b),
@@ -5788,6 +5816,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                             dE * e_ratio,
                             GCodeWriter::full_gcode_comment ? tempDescription : "", path.is_force_no_extrusion());
                     }
+                    ++segment_idx;
                 }
             } else {
                 // BBS: start to generate gcode from arc fitting data which includes line and arc

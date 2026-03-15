@@ -1196,6 +1196,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         std::unique_ptr<Fill> f = std::unique_ptr<Fill>(Fill::new_from_type(surface_fill.params.pattern));
         f->set_bounding_box(bbox);
         f->layer_id = this->id();
+        f->dont_alternate_fill_direction = this->object()->config().zaa_dont_alternate_fill_direction;
         f->z 		= this->print_z;
         f->angle 	= surface_fill.params.angle;
         f->is_using_template_angle = surface_fill.params.is_using_template_angle;
@@ -1386,6 +1387,7 @@ Polylines Layer::generate_sparse_infill_polylines_for_anchoring(FillAdaptive::Oc
         std::unique_ptr<Fill> f = std::unique_ptr<Fill>(Fill::new_from_type(surface_fill.params.pattern));
         f->set_bounding_box(bbox);
         f->layer_id = this->id() - this->object()->get_layer(0)->id(); // We need to subtract raft layers.
+        f->dont_alternate_fill_direction = this->object()->config().zaa_dont_alternate_fill_direction;
         f->z        = this->print_z;
         f->angle    = surface_fill.params.angle;
         f->is_using_template_angle = surface_fill.params.is_using_template_angle;
@@ -1559,6 +1561,7 @@ void Layer::make_ironing()
     std::unique_ptr<Fill> f         = std::unique_ptr<Fill>(Fill::new_from_type(f_pattern));
     f->set_bounding_box(this->object()->bounding_box());
     f->layer_id = this->id();
+    f->dont_alternate_fill_direction = this->object()->config().zaa_dont_alternate_fill_direction;
     f->z        = this->print_z;
     f->overlap  = 0;
 	for (size_t i = 0; i < by_extruder.size();) {
@@ -1571,6 +1574,7 @@ void Layer::make_ironing()
             f = std::unique_ptr<Fill>(Fill::new_from_type(f_pattern));
             f->set_bounding_box(this->object()->bounding_box());
             f->layer_id = this->id();
+            f->dont_alternate_fill_direction = this->object()->config().zaa_dont_alternate_fill_direction;
             f->z        = this->print_z;
             f->overlap  = 0;
 		}

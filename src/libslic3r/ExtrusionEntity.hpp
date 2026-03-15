@@ -7,6 +7,7 @@
 
 #include <assert.h>
 #include <string_view>
+#include <algorithm>
 #include <numeric>
 
 namespace Slic3r {
@@ -151,6 +152,8 @@ class ExtrusionPath : public ExtrusionEntity
 {
 public:
     Polyline polyline;
+    bool z_contoured = false;
+    std::vector<coordf_t> z_offsets;
     // Volumetric velocity. mm^3 of plastic per mm of linear head motion. Used by the G-code generator.
     double mm3_per_mm;
     // Width of the extrusion, used for visualization purposes.
@@ -164,66 +167,93 @@ public:
 
     ExtrusionPath(const ExtrusionPath &rhs)
         : polyline(rhs.polyline)
+        , z_contoured(rhs.z_contoured)
+        , z_offsets(rhs.z_offsets)
         , mm3_per_mm(rhs.mm3_per_mm)
         , width(rhs.width)
         , height(rhs.height)
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
         , m_no_extrusion(rhs.m_no_extrusion)
-    {}
+    {
+        this->sanitize_contour_data();
+    }
     ExtrusionPath(ExtrusionPath &&rhs)
         : polyline(std::move(rhs.polyline))
+        , z_contoured(rhs.z_contoured)
+        , z_offsets(std::move(rhs.z_offsets))
         , mm3_per_mm(rhs.mm3_per_mm)
         , width(rhs.width)
         , height(rhs.height)
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
         , m_no_extrusion(rhs.m_no_extrusion)
-    {}
+    {
+        this->sanitize_contour_data();
+    }
     ExtrusionPath(const Polyline &polyline, const ExtrusionPath &rhs)
         : polyline(polyline)
+        , z_contoured(rhs.z_contoured)
+        , z_offsets(rhs.z_offsets)
         , mm3_per_mm(rhs.mm3_per_mm)
         , width(rhs.width)
         , height(rhs.height)
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
         , m_no_extrusion(rhs.m_no_extrusion)
-    {}
+    {
+        this->sanitize_contour_data();
+    }
     ExtrusionPath(Polyline &&polyline, const ExtrusionPath &rhs)
         : polyline(std::move(polyline))
+        , z_contoured(rhs.z_contoured)
+        , z_offsets(rhs.z_offsets)
         , mm3_per_mm(rhs.mm3_per_mm)
         , width(rhs.width)
         , height(rhs.height)
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
         , m_no_extrusion(rhs.m_no_extrusion)
-    {}
+    {
+        this->sanitize_contour_data();
+    }
 
     ExtrusionPath& operator=(const ExtrusionPath& rhs) {
         m_can_reverse = rhs.m_can_reverse;
         m_role = rhs.m_role;
         m_no_extrusion = rhs.m_no_extrusion;
+        this->z_contoured = rhs.z_contoured;
+        this->z_offsets = rhs.z_offsets;
         this->mm3_per_mm = rhs.mm3_per_mm;
         this->width = rhs.width;
         this->height = rhs.height;
         this->polyline = rhs.polyline;
+        this->sanitize_contour_data();
         return *this;
     }
     ExtrusionPath& operator=(ExtrusionPath&& rhs) {
         m_can_reverse = rhs.m_can_reverse;
         m_role = rhs.m_role;
         m_no_extrusion = rhs.m_no_extrusion;
+        this->z_contoured = rhs.z_contoured;
+        this->z_offsets = std::move(rhs.z_offsets);
         this->mm3_per_mm = rhs.mm3_per_mm;
         this->width = rhs.width;
         this->height = rhs.height;
         this->polyline = std::move(rhs.polyline);
+        this->sanitize_contour_data();
         return *this;
     }
 
 	ExtrusionEntity* clone() const override { return new ExtrusionPath(*this); }
     // Create a new object, initialize it with this object using the move semantics.
 	ExtrusionEntity* clone_move() override { return new ExtrusionPath(std::move(*this)); }
-    void reverse() override { this->polyline.reverse(); }
+    void reverse() override {
+        this->polyline.reverse();
+        if (this->z_contoured && !this->z_offsets.empty())
+            std::reverse(this->z_offsets.begin(), this->z_offsets.end());
+        this->sanitize_contour_data();
+    }
     const Point& first_point() const override { return this->polyline.points.front(); }
     const Point& last_point() const override { return this->polyline.points.back(); }
     size_t size() const { return this->polyline.size(); }
@@ -267,6 +297,13 @@ public:
     bool can_reverse() const override { return m_can_reverse; }
 
 private:
+    void sanitize_contour_data()
+    {
+        if (!this->z_contoured || this->z_offsets.size() != this->polyline.points.size()) {
+            this->z_contoured = false;
+            this->z_offsets.clear();
+        }
+    }
     void _inflate_collection(const Polylines &polylines, ExtrusionEntityCollection* collection) const;
     bool m_can_reverse = true;
     ExtrusionRole m_role;

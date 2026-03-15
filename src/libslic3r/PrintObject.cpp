@@ -8,6 +8,7 @@
 #include "Layer.hpp"
 #include "MutablePolygon.hpp"
 #include "PrintConfig.hpp"
+#include "SLA/IndexedMesh.hpp"
 #include "Support/SupportMaterial.hpp"
 #include "Support/SupportSpotsGenerator.hpp"
 #include "Support/TreeSupport.hpp"
@@ -583,6 +584,40 @@ void PrintObject::ironing()
         BOOST_LOG_TRIVIAL(debug) << "Ironing in parallel - end";
         this->set_done(posIroning);
     }
+}
+
+void PrintObject::contour_z()
+{
+    if (!this->set_started(posContouring))
+        return;
+
+    if (!this->config().zaa_enabled || m_layers.size() < 2) {
+        this->set_done(posContouring);
+        return;
+    }
+
+    m_print->set_status(40, L("Z contouring"));
+    BOOST_LOG_TRIVIAL(debug) << "Z contouring in parallel - start";
+
+    TriangleMesh mesh = this->m_model_object->raw_mesh();
+    if (!m_model_object->instances.empty())
+        m_model_object->instances.front()->transform_mesh(&mesh, true);
+    sla::IndexedMesh indexed_mesh(mesh);
+
+    tbb::parallel_for(
+        // Start from layer 1 to reduce first-layer collision risk.
+        tbb::blocked_range<size_t>(1, m_layers.size()),
+        [this, &indexed_mesh](const tbb::blocked_range<size_t>& range) {
+            for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
+                m_print->throw_if_canceled();
+                m_layers[layer_idx]->make_contour_z(indexed_mesh);
+            }
+        }
+    );
+    m_print->throw_if_canceled();
+
+    BOOST_LOG_TRIVIAL(debug) << "Z contouring in parallel - end";
+    this->set_done(posContouring);
 }
 
 // BBS
@@ -1226,15 +1261,19 @@ bool PrintObject::invalidate_step(PrintObjectStep step)
 
     // propagate to dependent steps
     if (step == posPerimeters) {
-		invalidated |= this->invalidate_steps({ posPrepareInfill, posInfill, posIroning, posSimplifyPath, posSimplifyInfill });
+		invalidated |= this->invalidate_steps({ posPrepareInfill, posInfill, posIroning, posContouring, posSimplifyPath, posSimplifyInfill });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
     } else if (step == posPrepareInfill) {
-        invalidated |= this->invalidate_steps({ posInfill, posIroning, posSimplifyPath, posSimplifyInfill });
+        invalidated |= this->invalidate_steps({ posInfill, posIroning, posContouring, posSimplifyPath, posSimplifyInfill });
     } else if (step == posInfill) {
-        invalidated |= this->invalidate_steps({ posIroning, posSimplifyInfill });
+        invalidated |= this->invalidate_steps({ posIroning, posContouring, posSimplifyInfill });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
+    } else if (step == posIroning) {
+        invalidated |= this->invalidate_steps({ posContouring, posSimplifyInfill });
+    } else if (step == posContouring) {
+        invalidated |= this->invalidate_steps({ posSimplifyInfill });
     } else if (step == posSlice) {
-		invalidated |= this->invalidate_steps({ posPerimeters, posPrepareInfill, posInfill, posIroning, posSupportMaterial, posSimplifyPath, posSimplifyInfill });
+		invalidated |= this->invalidate_steps({ posPerimeters, posPrepareInfill, posInfill, posIroning, posContouring, posSupportMaterial, posSimplifyPath, posSimplifyInfill });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
         m_slicing_params.valid = false;
     } else if (step == posSupportMaterial) {

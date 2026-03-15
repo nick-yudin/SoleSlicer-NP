@@ -244,6 +244,11 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
             || opt_key == "filament_shrinkage_compensation_z"
             || opt_key == "resolution"
             || opt_key == "precise_z_height"
+            || opt_key == "zaa_enabled"
+            || opt_key == "zaa_min_z"
+            || opt_key == "zaa_region_disable"
+            || opt_key == "zaa_minimize_perimeter_height"
+            || opt_key == "zaa_dont_alternate_fill_direction"
             // Spiral Vase forces different kind of slicing than the normal model:
             // In Spiral Vase mode, holes are closed and only the largest area contour is kept at each layer.
             // Therefore toggling the Spiral Vase on / off requires complete reslicing.
@@ -1998,6 +2003,15 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
                     obj->set_done(posIroning);
             }
         }
+        for (PrintObject *obj : m_objects) {
+            if (need_slicing_objects.count(obj) != 0) {
+                obj->contour_z();
+            }
+            else {
+                if (obj->set_started(posContouring))
+                    obj->set_done(posContouring);
+            }
+        }
 
         tbb::parallel_for(tbb::blocked_range<int>(0, int(m_objects.size())),
             [this, need_slicing_objects](const tbb::blocked_range<int>& range) {
@@ -2037,6 +2051,8 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
                     obj->set_done(posInfill);
                 if (obj->set_started(posIroning))
                     obj->set_done(posIroning);
+                if (obj->set_started(posContouring))
+                    obj->set_done(posContouring);
                 if (obj->set_started(posSupportMaterial))
                     obj->set_done(posSupportMaterial);
                 if (obj->set_started(posDetectOverhangsForLift))
@@ -2046,6 +2062,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
                 obj->make_perimeters();
                 obj->infill();
                 obj->ironing();
+                obj->contour_z();
                 obj->generate_support_material();
                 obj->detect_overhangs_for_lift();
                 obj->estimate_curled_extrusions();
@@ -3189,6 +3206,8 @@ const std::string PrintStatistics::TotalFilamentUsedWipeTowerValueMask = "; tota
 #define JSON_EXTRUSION_HEIGHT                  "height"
 #define JSON_EXTRUSION_ROLE                    "role"
 #define JSON_EXTRUSION_NO_EXTRUSION            "no_extrusion"
+#define JSON_EXTRUSION_Z_CONTOURED             "z_contoured"
+#define JSON_EXTRUSION_Z_OFFSETS               "z_offsets"
 #define JSON_EXTRUSION_LOOP_ROLE               "loop_role"
 
 
@@ -3282,6 +3301,8 @@ static void to_json(json& j, const ExtrusionPath& extrusion_path) {
     j[JSON_EXTRUSION_HEIGHT] = extrusion_path.height;
     j[JSON_EXTRUSION_ROLE] = extrusion_path.role();
     j[JSON_EXTRUSION_NO_EXTRUSION] = extrusion_path.is_force_no_extrusion();
+    j[JSON_EXTRUSION_Z_CONTOURED] = extrusion_path.z_contoured;
+    j[JSON_EXTRUSION_Z_OFFSETS] = extrusion_path.z_offsets;
 }
 
 static bool convert_extrusion_to_json(json& entity_json, json& entity_paths_json, const ExtrusionEntity* extrusion_entity) {
@@ -3558,6 +3579,14 @@ static void from_json(const json& j, ExtrusionPath& extrusion_path) {
     extrusion_path.height                 =    j[JSON_EXTRUSION_HEIGHT];
     extrusion_path.set_extrusion_role(j[JSON_EXTRUSION_ROLE]);
     extrusion_path.set_force_no_extrusion(j[JSON_EXTRUSION_NO_EXTRUSION]);
+    extrusion_path.z_contoured = j.contains(JSON_EXTRUSION_Z_CONTOURED) ? bool(j[JSON_EXTRUSION_Z_CONTOURED]) : false;
+    extrusion_path.z_offsets.clear();
+    if (j.contains(JSON_EXTRUSION_Z_OFFSETS))
+        extrusion_path.z_offsets = j[JSON_EXTRUSION_Z_OFFSETS].get<std::vector<coordf_t>>();
+    if (!extrusion_path.z_contoured || extrusion_path.z_offsets.size() != extrusion_path.polyline.points.size()) {
+        extrusion_path.z_contoured = false;
+        extrusion_path.z_offsets.clear();
+    }
 }
 
 static bool convert_extrusion_from_json(const json& entity_json, ExtrusionEntityCollection& entity_collection) {
