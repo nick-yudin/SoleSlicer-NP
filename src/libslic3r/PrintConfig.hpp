@@ -938,6 +938,9 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,              initial_layer_jerk))
     ((ConfigOptionFloat,              travel_jerk))
     ((ConfigOptionBool,               precise_z_height))
+    ((ConfigOptionBool,               zaa_enabled))
+    ((ConfigOptionBool,               zaa_dont_alternate_fill_direction))
+    ((ConfigOptionFloat,              zaa_min_z))
     ((ConfigOptionFloat,              default_junction_deviation))
         
     ((ConfigOptionBool, interlocking_beam))
@@ -1094,6 +1097,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatOrPercent,       scarf_joint_speed))
     ((ConfigOptionFloat,                scarf_joint_flow_ratio))
     ((ConfigOptionPercent,              scarf_overhang_threshold))
+    ((ConfigOptionBool,                 zaa_region_disable))
+    ((ConfigOptionFloat,                zaa_minimize_perimeter_height))
 )
 
 PRINT_CONFIG_CLASS_DEFINE(

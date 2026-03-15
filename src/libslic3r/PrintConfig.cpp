@@ -2961,6 +2961,30 @@ void PrintConfigDef::init_fff_params()
     def->mode    = comAdvanced;
     def->set_default_value(new ConfigOptionBool(0));
 
+    def = this->add("zaa_enabled", coBool);
+    def->label = L("Z contouring enabled");
+    def->category = L("Quality");
+    def->tooltip = L("Enable Z-layer contouring, also known as Z anti-aliasing.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("zaa_dont_alternate_fill_direction", coBool);
+    def->label = L("Do not alternate fill direction");
+    def->category = L("Quality");
+    def->tooltip = L("Keep the same fill direction between layers when Z contouring is enabled.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("zaa_min_z", coFloat);
+    def->label = L("Minimum Z height");
+    def->category = L("Quality");
+    def->tooltip = L("Minimum local Z height allowed by Z contouring. This also affects the slicing plane.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->max = 100;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0.05));
+
     // BBS
     def = this->add("enable_arc_fitting", coBool);
     def->label = L("Arc fitting");
@@ -4513,6 +4537,23 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("Use scarf joint for inner walls as well.");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("zaa_region_disable", coBool);
+    def->label = L("Disable Z contouring for region");
+    def->category = L("Quality");
+    def->tooltip = L("Disable Z contouring for this specific region.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("zaa_minimize_perimeter_height", coFloat);
+    def->label = L("Minimize wall height angle");
+    def->category = L("Quality");
+    def->tooltip = L("Reduce top-surface perimeter heights to better match the edge height for walls below this angle. Set 0 to disable.");
+    def->sidetext = L("°");
+    def->min = 0;
+    def->max = 90;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(35));
 
     def = this->add("role_based_wipe_speed", coBool);
     def->label = L("Role base wipe speed");
