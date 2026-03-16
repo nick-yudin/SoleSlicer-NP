@@ -24,9 +24,11 @@ docker run --rm \
   -v "$PWD:/work" \
   ghcr.io/nick-yudin/soleslicer-np-cli:latest \
   --slice 1 \
+  --no-check \
+  --layer-change-gcode "G92 E0" \
   --outputdir /work/out \
-  --zaa_enabled 1 \
-  --zaa_min_z 0.03 \
+  --zaa-enabled \
+  --zaa-min-z 0.03 \
   /work/model.stl
 ```
 
@@ -43,6 +45,8 @@ docker run --rm \
   -v "$PWD:/work" \
   ghcr.io/nick-yudin/soleslicer-np-cli:latest \
   --slice 1 \
+  --no-check \
+  --layer-change-gcode "G92 E0" \
   --outputdir /work/out-baseline \
   /work/model.stl
 ```
@@ -54,9 +58,11 @@ docker run --rm \
   -v "$PWD:/work" \
   ghcr.io/nick-yudin/soleslicer-np-cli:latest \
   --slice 1 \
+  --no-check \
+  --layer-change-gcode "G92 E0" \
   --outputdir /work/out-zaa \
-  --zaa_enabled 1 \
-  --zaa_min_z 0.03 \
+  --zaa-enabled \
+  --zaa-min-z 0.03 \
   /work/model.stl
 ```
 
