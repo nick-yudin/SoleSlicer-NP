@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR ${APP_DIR}
 COPY package/ ${APP_DIR}/
+RUN chmod +x ${APP_DIR}/bin/orca-slicer
 
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
