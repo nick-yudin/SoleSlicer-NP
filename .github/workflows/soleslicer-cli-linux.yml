@@ -34,6 +34,8 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    env:
+      DEPS_CACHE_KEY: ubuntu-2404-orca-deps-v1
 
     steps:
       - name: Checkout
@@ -56,7 +58,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/deps/build/destdir
-          key: ubuntu-2404-orca-deps-${{ hashFiles('deps/**') }}
+          key: ${{ env.DEPS_CACHE_KEY }}
 
       - name: Build deps (cache miss)
         if: steps.cache-deps.outputs.cache-hit != 'true'
@@ -70,7 +72,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ github.workspace }}/deps/build/destdir
-          key: ubuntu-2404-orca-deps-${{ hashFiles('deps/**') }}
+          key: ${{ env.DEPS_CACHE_KEY }}
 
       - name: Build Orca CLI package
         run: |
