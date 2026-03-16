@@ -53,7 +53,7 @@ jobs:
 
       - name: Restore deps cache
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/deps/build/destdir
           key: ubuntu-2404-orca-deps-${{ hashFiles('deps/**') }}
@@ -64,6 +64,13 @@ jobs:
           sudo ./build_linux.sh -ur
           sudo chown "$USER" -R ./
           ./build_linux.sh -dr
+
+      - name: Save deps cache
+        if: always() && steps.cache-deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/deps/build/destdir
+          key: ubuntu-2404-orca-deps-${{ hashFiles('deps/**') }}
 
       - name: Build Orca CLI package
         run: |
