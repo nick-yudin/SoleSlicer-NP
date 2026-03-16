@@ -113,8 +113,8 @@ solid wedge
 endsolid wedge
 EOF
 
-"${SLICER_BIN}" --slice 1 --no-check --outputdir "${BASE_OUT}" "${MODEL_FILE}"
-"${SLICER_BIN}" --slice 1 --no-check --outputdir "${ZAA_OUT}" --zaa-enabled --zaa-min-z 0.03 "${MODEL_FILE}"
+"${SLICER_BIN}" --slice 1 --no-check --use-relative-e-distances 0 --outputdir "${BASE_OUT}" "${MODEL_FILE}"
+"${SLICER_BIN}" --slice 1 --no-check --use-relative-e-distances 0 --outputdir "${ZAA_OUT}" --zaa-enabled --zaa-min-z 0.03 "${MODEL_FILE}"
 
 BASE_GCODE="${BASE_OUT}/plate_1.gcode"
 ZAA_GCODE="${ZAA_OUT}/plate_1.gcode"
