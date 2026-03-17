@@ -51,7 +51,7 @@ jobs:
             libwayland-dev libxkbcommon-dev wayland-protocols extra-cmake-modules pkgconf \
             libglu1-mesa-dev libcairo2-dev libgtk-3-dev libmspack-dev libsecret-1-dev libsoup2.4-dev libwebkit2gtk-4.1-dev \
             libgstreamer1.0-dev libgstreamer-plugins-good1.0-dev libgstreamer-plugins-base1.0-dev \
-            gstreamer1.0-plugins-bad wget sudo autoconf curl libunwind-dev texinfo
+            gstreamer1.0-plugins-bad wget sudo autoconf curl gettext libunwind-dev texinfo
 
       - name: Restore deps cache
         id: cache-deps
